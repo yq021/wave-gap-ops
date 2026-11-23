@@ -62,12 +62,25 @@
   kbd { background:#17324c; border:1px solid #2b5480; border-radius:4px; padding:1px 5px;
     font-size:11px; color:#cfe9ff; }
   .foot { font-size:11px; color:#5f7994; margin-top:14px; line-height:1.6; }
+  .paramgrid { display:grid; grid-template-columns:20px 1fr 44px 1fr 48px;
+    gap:5px 6px; align-items:center; font-size:11px; margin-top:6px; }
+  .paramgrid .hd { color:#7d95ad; font-size:10px; }
+  .paramgrid .pid { font-weight:700; text-align:center; }
+  .paramgrid input[type=range] { width:100%; accent-color:#4dd0e1; margin:0; }
+  .paramgrid .pv { text-align:right; color:#ffd166; font-variant-numeric:tabular-nums; }
+  .paramgrid input:disabled { opacity:.38; cursor:not-allowed; }
+  .paramstate { font-size:11px; margin-top:9px; line-height:1.6; }
+  .paramstate b { color:#5ce6a0; }
+  .paramstate.locked b { color:#ffb454; }
+  .preview { font-size:11px; color:#a9c1d8; line-height:1.7; margin-top:7px;
+    background:rgba(12,30,48,.6); border:1px solid #1e3a55; border-radius:6px; padding:7px 9px; }
+  .preview b { color:#7fe3f5; font-variant-numeric:tabular-nums; }
 </style>
 </head>
 <body>
 <header>
   <h1>波隙作业</h1>
-  <span class="sub">Wave Gap Ops · 往返任务版 · 五点旋转 180° · 波场 1400 m · 局部波痕视角</span>
+  <span class="sub">Wave Gap Ops · 往返任务版 · 五点旋转 180° · 波场 1400 m · 局部波痕视角 · 开局前 T/v 可调</span>
 </header>
 <div class="wrap">
   <div class="stage">
@@ -132,23 +145,28 @@
       按 <kbd>V</kbd> 或点「主视图」按钮，可把主画布也锁定到这个局部范围，放大看周围波痕；再按一次恢复自动远景。
     </div>
 
-    <h3>原始数据一览（已整体旋转 180°）</h3>
+    <h3>节点参数（仅开局前可调）</h3>
+    <div style="font-size:11px;color:#8ba5bd;line-height:1.6">
+      五个点各自的发射间隔 T 与波速 v。点「开始执行」后立即锁定；按 <kbd>R</kbd> 或「重置」回到待命状态才能再改。
+      「开局预置波」数量同属开局设定，一并锁定。
+    </div>
+    <div class="paramgrid" id="paramGrid"></div>
+    <div class="paramstate" id="paramState"><b>可调</b> · 待命中，改动即时重算开局波场</div>
+    <div class="preview" id="previewInfo"></div>
+
+    <h3>节点一览（已整体旋转 180°）</h3>
     <table>
-      <tr><th>点</th><th>基准</th><th>角度</th><th>距离</th><th>间隔</th><th>波速</th></tr>
-      <tr><td>a</td><td>原点</td><td>—</td><td>—</td><td>20 s</td><td>5 m/s</td></tr>
-      <tr><td>b</td><td>a</td><td>212.3°</td><td>50 m</td><td>17 s</td><td>4.5 m/s</td></tr>
-      <tr><td>c</td><td>a</td><td>312°</td><td>75 m</td><td>18 s</td><td>4.5 m/s</td></tr>
-      <tr><td>d</td><td>b</td><td>223.2°</td><td>35 m</td><td>16 s</td><td>5.5 m/s</td></tr>
-      <tr><td>e</td><td>c</td><td>308°</td><td>70 m</td><td>15 s</td><td>5.5 m/s</td></tr>
+      <thead><tr><th>点</th><th>基准</th><th>角度</th><th>距离</th><th>间隔 T</th><th>波速 v</th></tr></thead>
+      <tbody id="nodeTableBody"></tbody>
     </table>
     <div style="font-size:11px;color:#7d95ad;margin-top:6px;line-height:1.6">
-      五个方向角各 +180°（等价于整体绕 a 点旋转 180°、所有坐标取反）：b 32.3°→212.3°，c 132°→312°，d 43.2°→223.2°，e 128°→308°；a 仍在原点。
+      五个方向角各 +180°（等价于整体绕 a 点旋转 180°、所有坐标取反）：b 32.3°→212.3°，c 132°→312°，d 43.2°→223.2°，e 128°→308°；a 仍在原点。角度列按当前选定的基准显示。
     </div>
     <div class="legend" id="legend" style="margin-top:8px"></div>
     <div style="font-size:11.5px;color:#a9c1d8;margin-top:10px;line-height:1.7">
       任务初始位置距 a 点 <b style="color:#7fe3f5">1500 m</b>（沿用 500 / 1000 / 1500 / 2000 m 距离刻度）；<br>
       各点波最远扩散 <b style="color:#7fe3f5">1400 m</b>；<br>
-      开局按各点间隔回溯 <b style="color:#7fe3f5">5 道历史波</b>（共 25 道波纹已铺开），之后按原间隔续发；<br>
+      <span id="dPresetInfo">开局按各点间隔回溯历史波，之后按原间隔续发；</span><br>
       a 点作业需保持两个 <b style="color:#7fe3f5">1 m 宽 × 2 m 高</b> 椭圆 <b style="color:#7fe3f5">1 s</b>，
       再填补洞穴 <b style="color:#7fe3f5">1 s</b>；<br>
       单次移动距离 <b style="color:#7fe3f5">0–55 m</b>。
@@ -157,13 +175,14 @@
     <h3>规则说明（对原始数据的解释）</h3>
     <details open>
       <p>1. <b>胜利条件 = 出生点 → a 点 → 返回出生点</b>。去程进入 a 点 5 m 圈并停稳，完成 2 秒作业（保持两个椭圆 1 s + 填补洞穴 1 s）即视为任务达成，立刻转入回程；回到出生点 25 m 绿色撤离圈即通关。b/c/d/e 现在是纯波源，不再需要作业。</p>
-      <p>2. 五个点各自按间隔向外发射圆形波，波速各不相同，<b>每道波最远扩散 1400 m</b>（出生点在 a 点外 1500 m，只比波场边界远 100 m）。波环（危险带约 2 m）扫到执行人员扣 1 点生命，共 3 点；同一次命中后 1.2 s 无敌，波源 3 m 内为发射盲区。</p>
+      <p>2. 五个点各自按<b>开局前设定的间隔 T</b>向外发射圆形波，<b>波速 v 同样逐点可调</b>，<b>每道波最远扩散 1400 m</b>（出生点在 a 点外 1500 m，只比波场边界远 100 m）。波环（危险带约 2 m）扫到执行人员扣 1 点生命，共 3 点；同一次命中后 1.2 s 无敌，波源 3 m 内为发射盲区。</p>
       <p>3. <b>移动为闪现</b>：指令 → 1.0 s 延迟（原地蓄力，画出落点与倒计时）→ 瞬间抵达 → 1.0 s 冷却，冷却结束才能发下一条。延迟与冷却是游戏秒，受时间倍率影响；右侧滑块可一起调 0.5–2.0 s。</p>
       <p>4. 按住方向键会自动连续闪现；延迟 / 冷却期间的点击或按键会缓存一条预输入。走到 a 点任务圈会自动停下，松开按键即可开始作业。</p>
       <p>5. 每条指令距离限制在 0–55 m。任务真实起点在 a 点正南 <b>1500 m</b>，单程满步约 28 次闪现，往返约 56 次；镜头随距离自动拉远 / 拉近，远景沿用 500–2000 m 同心圆刻度并标出 1400 m 波场边界，靠近后切回战术视图。</p>
-      <p>6. 波场扩大后，去程前段波还没扩出来相对安全，回程时波环已铺满大半张地图，需看「最近波前」（3 s 内变红）卡波隙撤离。角度默认按数学极角，可切换罗盘方位角（会重开一局）。通关计时含完整往返。</p>
+      <p>6. 出生点 1500 m 外位于波场边界之外，去程前段相对安全；越往里波环越密，回程时波场已被续发波填满，需看「最近波前」（3 s 内变红）卡波隙撤离。角度默认按数学极角，可切换罗盘方位角（会重开一局）。通关计时含完整往返。</p>
       <p>7. <b>局部视角</b>：右下角雷达把视野缩小到玩家周围 40–250 m（默认 100 m），与主视图的自动远景互不干扰。波环每前进约 1/6 视野半径就留下一道淡色弧线痕迹，10 游戏秒内渐隐，能看出波从哪来、刚扫过哪里、下一道还有多远；只记录进入局部视野的波，不影响命中判定。按 <kbd>V</kbd> 可让主视图同样锁定局部。</p>
-      <p>8. <b>开局预置波</b>：t=0 不再是空场。每个点按自己的间隔 T 回溯生成 5 道历史波（发射时刻 −T、−2T…−5T，半径 v·kT），共 25 道波纹开局就在场上向外扩散；之后仍从 t=T 起按原间隔继续发射，时间线连续，波长（相邻波环间距 = v·T）保持不变。最远一道历史波半径约 400–500 m，出生点 1500 m 外仍安全，但一进波场就得面对密集波环，不能再无脑直冲。右侧「开局预置波」滑块可设 0–8 道/点（0 = 回到空场开局），改动会重开一局；每道历史波还补了两道刚扫过的淡色痕迹，局部视角里能看出它走过的路径。</p>
+      <p>8. <b>开局预置波</b>：t=0 不再是空场。每个点按自己当前的间隔 T 回溯生成若干道历史波（发射时刻 −T、−2T…，半径 = v·kT），开局就在场上向外扩散；之后仍从 t=T 起按原间隔继续发射，时间线连续，波长（相邻波环间距 = 当前 v·T）保持不变。预置半径超过 1400 m 的会被波场边界吞掉，配置区下方有实时预览。出生点 1500 m 外仍安全，但一进波场就得面对密集波环，不能再无脑直冲。右侧「开局预置波」滑块可设 0–8 道/点（0 = 回到空场开局），改动会重开一局；每道历史波还补了两道刚扫过的淡色痕迹，局部视角里能看出它走过的路径。</p>
+      <p>9. <b>参数锁定与成绩</b>：节点参数与预置波数只在待命（开局前）状态可调，一旦开始执行即锁定，避免中途改 T / v 让已发射的波与后续波时间线错乱；重置后解锁。不同参数组合的最佳成绩分别保存在本机，不会拿空场配置的纪录去压新配置。</p>
     </details>
     <div class="foot">单文件离线可玩 · 最佳成绩保存在本机浏览器</div>
   </aside>
@@ -200,6 +219,10 @@
     {id:'e', base:'c',  deg:308,   dist:70, T:15, v:5.5, color:'#b388ff'},
   ];
 
+  // 间隔 T 与波速 v 的唯一真值来源；DEF 里的 T/v 只作为默认值。
+  // 仅待命（ready）阶段可改，开始执行后锁定，避免时间线中途错乱。
+  const PARAMS = DEF.map(d => ({T:d.T, v:d.v}));
+
   const CFG = {
     angleMode:'math', step:55, timeScale:2,
     spawnDist:1500, blinkDelay:1, blinkCool:1,
@@ -221,10 +244,11 @@
   }
   function buildNodes(){
     const out = [], map = {};
-    for(const d of DEF){
+    for(let i=0;i<DEF.length;i++){
+      const d = DEF[i];
       const o = d.base ? map[d.base] : {x:0,y:0};
       const pos = d.base ? polar(o, d.deg, d.dist) : {x:0,y:0};
-      const n = {...d, x:pos.x, y:pos.y};
+      const n = {...d, T:PARAMS[i].T, v:PARAMS[i].v, x:pos.x, y:pos.y};
       out.push(n); map[d.id] = n;
     }
     return out;
@@ -282,18 +306,118 @@
     const dmax = Math.hypot(Math.max(c.x, W-c.x), Math.max(c.y, H-c.y)); // 圆心 → 矩形最远角
     return rp >= dmin - pad && rp <= dmax + pad;
   }
+  // 不同 T / v / 预置波数组合下难度不同，成绩各自独立保存
+  function paramsKey(){
+    const isDefault = CFG.presetWaves===5 &&
+      PARAMS.every((p,i)=> p.T===DEF[i].T && p.v===DEF[i].v);
+    if(isDefault) return 'roundtrip';              // 默认配置沿用旧版成绩键
+    const s = PARAMS.map(p=>p.T+':'+p.v).join('|') + '|p' + CFG.presetWaves;
+    let h = 2166136261;
+    for(let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h>>>0).toString(36);
+  }
   function loadBest(){
-    try { return parseFloat(localStorage.getItem('wavegap.best.roundtrip')||'') || null; }
+    try { return parseFloat(localStorage.getItem('wavegap.best.'+paramsKey())||'') || null; }
     catch(e){ return null; }
   }
   function saveBest(v){
-    try { localStorage.setItem('wavegap.best.roundtrip', String(v)); } catch(e){}
+    try { localStorage.setItem('wavegap.best.'+paramsKey(), String(v)); } catch(e){}
   }
   function toast(msg, sec=1.6){
     G.msg = msg; G.msgT = sec;
     const el = $('toast'); el.textContent = msg; el.classList.add('on');
   }
   function clearToast(){ $('toast').classList.remove('on'); }
+
+  const fmt = x => Number.isInteger(x) ? String(x) : (Math.round(x*10)/10).toFixed(1);
+  function shownDeg(d){
+    return fmt(CFG.angleMode==='bearing' ? (90 - d.deg + 360) % 360 : d.deg);
+  }
+
+  // ---- 开局前节点参数面板 ----
+  function buildParamGrid(){
+    let html = '<div></div><div class="hd">间隔 T</div><div></div><div class="hd">波速 v</div><div></div>';
+    for(const d of DEF){
+      const i = DEF.indexOf(d), p = PARAMS[i];
+      html +=
+        `<span class="pid" style="color:${d.color}">${d.id.toUpperCase()}</span>` +
+        `<input type="range" id="pT_${d.id}" min="1" max="40" step="0.5" value="${p.T}">` +
+        `<span class="pv" id="pTv_${d.id}">${fmt(p.T)} s</span>` +
+        `<input type="range" id="pV_${d.id}" min="1" max="12" step="0.5" value="${p.v}">` +
+        `<span class="pv" id="pVv_${d.id}">${fmt(p.v)} m/s</span>`;
+    }
+    $('paramGrid').innerHTML = html;
+    for(const d of DEF){
+      $('pT_'+d.id).addEventListener('input', onParamInput);
+      $('pV_'+d.id).addEventListener('input', onParamInput);
+    }
+  }
+  function onParamInput(e){
+    if(!G || G.phase!=='ready') return;          // 开始执行后不再响应（控件已禁用，双保险）
+    const id = e.target.id;
+    const isT = id.startsWith('pT_');
+    if(!isT && !id.startsWith('pV_')) return;
+    const i = DEF.findIndex(d => d.id === id.slice(3));
+    if(i<0) return;
+    const val = +e.target.value;
+    if(isT) PARAMS[i].T = val; else PARAMS[i].v = val;
+    reset();                                     // 按新参数重算开局波场与成绩档位
+  }
+  function updateParamLabels(){
+    for(let i=0;i<DEF.length;i++){
+      const d=DEF[i], p=PARAMS[i];
+      $('pTv_'+d.id).textContent = fmt(p.T)+' s';
+      $('pVv_'+d.id).textContent = fmt(p.v)+' m/s';
+    }
+  }
+  function renderNodeTable(){
+    $('nodeTableBody').innerHTML = DEF.map((d,i)=>{
+      const p=PARAMS[i];
+      return `<tr><td style="color:${d.color}">${d.id}</td>`+
+             `<td>${d.base||'原点'}</td>`+
+             `<td>${d.base ? shownDeg(d)+'°' : '—'}</td>`+
+             `<td>${d.base ? d.dist+' m' : '—'}</td>`+
+             `<td>${fmt(p.T)} s</td><td>${fmt(p.v)} m/s</td></tr>`;
+    }).join('');
+  }
+  function renderLegend(){
+    $('legend').innerHTML = DEF.map((d,i)=>
+      `<span><i class="dot" style="background:${d.color}"></i>${d.id.toUpperCase()} · ${fmt(PARAMS[i].T)}s / ${fmt(PARAMS[i].v)}m/s</span>`
+    ).join('');
+  }
+  function renderPreview(){
+    let count=0, far=0, wmin=Infinity, wmax=0;
+    for(let i=0;i<DEF.length;i++){
+      const {T,v}=PARAMS[i], wl=T*v;
+      wmin=Math.min(wmin,wl); wmax=Math.max(wmax,wl);
+      for(let k=1;k<=CFG.presetWaves;k++){
+        const r=k*T*v;
+        if(r<=CFG.maxR){ count++; far=Math.max(far,r); }
+      }
+    }
+    const total=CFG.presetWaves*DEF.length;
+    const cut = count<total ? ` <span style="color:#ffb454">（${total-count} 道超出 1400 m 波场已舍去）</span>` : '';
+    $('previewInfo').innerHTML =
+      `按当前参数：开局可见波环 <b>${count}</b> / ${total} 道 · 最远预置半径 <b>${fmt(far)} m</b> · 波长 <b>${fmt(wmin)}–${fmt(wmax)} m</b>${cut}`;
+    $('dPresetInfo').textContent =
+      `开局按各点间隔回溯 ${CFG.presetWaves} 道历史波（可见 ${count} 道已铺开），之后按当前间隔续发；`;
+  }
+  let paramsLocked = null;
+  function syncParamsLock(){
+    const locked = !G || G.phase !== 'ready';
+    if(locked === paramsLocked) return;
+    paramsLocked = locked;
+    for(const d of DEF){
+      $('pT_'+d.id).disabled = locked;
+      $('pV_'+d.id).disabled = locked;
+    }
+    $('sPreset').disabled = locked;
+    const st=$('paramState');
+    st.classList.toggle('locked', locked);
+    st.innerHTML = locked
+      ? '<b>已锁定</b> · 任务进行中，按 R 或「重置」后可重新调整'
+      : '<b>可调</b> · 待命中，改动即时重算开局波场';
+  }
 
   function reset(){
     const nodes = buildNodes();
@@ -328,6 +452,9 @@
     $('banner').classList.add('hide');
     $('btnStart').textContent = '开始执行';
     clearToast();
+    updateParamLabels();
+    renderNodeTable(); renderLegend(); renderPreview();
+    syncParamsLock();
     updateHUD();
   }
 
@@ -408,10 +535,14 @@
       $('btnStart').textContent = G.paused ? '继续' : '暂停';
       toast(G.paused ? '已暂停' : '继续执行', 0.9);
     }
+    syncParamsLock();
   }
   $('btnStart').addEventListener('click', toggleStart);
   $('btnReset').addEventListener('click', reset);
-  $('bBtn').addEventListener('click', ()=>{ reset(); G.phase='approach'; G.approachT=0; $('btnStart').textContent='暂停'; });
+  $('bBtn').addEventListener('click', ()=>{
+    reset(); G.phase='approach'; G.approachT=0; $('btnStart').textContent='暂停';
+    syncParamsLock();
+  });
   $('sStep').addEventListener('input', e=>{
     CFG.step = +e.target.value;
     $('vStep').textContent = CFG.step+' m';
@@ -427,9 +558,13 @@
     $('vSpeed').textContent = CFG.timeScale.toFixed(1)+'×';
   });
   $('sPreset').addEventListener('input', e=>{
-    $('vPreset').textContent = (+e.target.value)+' 道/点';
+    if(!G || G.phase!=='ready') return;
+    CFG.presetWaves = +e.target.value;
+    $('vPreset').textContent = CFG.presetWaves+' 道/点';
+    renderPreview();
   });
   $('sPreset').addEventListener('change', e=>{
+    if(!G || G.phase!=='ready') return;
     CFG.presetWaves = +e.target.value;
     reset();
     toast(`开局预置波：每点 ${CFG.presetWaves} 道（共 ${CFG.presetWaves*DEF.length} 道），本局重置`, 2.0);
@@ -481,7 +616,7 @@
       G.approachT += realDt;
       if(G.approachT>=CFG.approachSec){
         G.phase='play'; G.t=0; G.nextEmit=G.nodes.map(n=>n.T);
-        toast(`部署完毕 · 五点各已按间隔铺开 ${CFG.presetWaves} 道历史波，冲进去先看波隙`, 2.6);
+        toast(`部署完毕 · 开局已铺开 ${G.waves.length} 道历史波，冲进去先看波隙`, 2.6);
       }
       return;
     }
@@ -599,6 +734,7 @@
 
   function updateHUD(){
     if(!G) return;
+    syncParamsLock();
     const p=G.player, bl=p.blink;
     $('hLives').textContent = '♥'.repeat(Math.max(0,G.lives)) + '·'.repeat(Math.max(0,CFG.lives-G.lives));
     $('hStage').textContent = G.stage==='outbound' ? (G.aDone ? '回程 → 出生点' : '去程 → a 点') : '回程 → 出生点';
@@ -975,7 +1111,7 @@
     ctx.font='bold 17px system-ui'; ctx.fillStyle='#7fe3f5';
     ctx.fillText('部 署 中', cx, cy-R-34);
     ctx.font='12px system-ui'; ctx.fillStyle='#8fb0ca';
-    ctx.fillText(`开局五点各已按间隔铺开 ${CFG.presetWaves} 道历史波（共 ${CFG.presetWaves*DEF.length} 道）· 单步 ≤ 55 m`, cx, cy-R-14);
+    ctx.fillText(`开局已按当前间隔 / 波速铺开 ${G.waves.length} 道历史波 · 单步 ≤ 55 m`, cx, cy-R-14);
     const bw=Math.min(380,W-60), bx=cx-bw/2, by=cy+R+34;
     ctx.fillStyle='rgba(20,45,70,.9)'; ctx.fillRect(bx,by,bw,6);
     ctx.fillStyle='#4dd0e1'; ctx.fillRect(bx,by,bw*k,6);
@@ -991,8 +1127,10 @@
     ctx.fillText('从距 a 点 1500 m 的出生点出发，靠闪现穿过已铺开的波环间隙', cx, cy-10);
     ctx.fillText('抵达 a 点完成 2 秒作业 → 原路返回出生点即通关', cx, cy+12);
     ctx.fillText('指令 → 1 s 延迟 → 瞬移 → 1 s 冷却', cx, cy+34);
+    ctx.fillStyle='#9fdcec';
+    ctx.fillText('右侧「节点参数」可在开局前逐点调整间隔 T 与波速 v', cx, cy+56);
     ctx.font='12px system-ui'; ctx.fillStyle='#6f8da8';
-    ctx.fillText(G.best ? `本机最佳往返：${G.best.toFixed(1)} s` : '尚无通关记录', cx, cy+68);
+    ctx.fillText(G.best ? `本配置最佳往返：${G.best.toFixed(1)} s` : '本配置尚无通关记录', cx, cy+82);
   }
 
   function render(){
@@ -1019,10 +1157,7 @@
     requestAnimationFrame(frame);
   }
 
-  $('legend').innerHTML = DEF.map(d=>
-    `<span><i class="dot" style="background:${d.color}"></i>${d.id.toUpperCase()} · ${d.T}s / ${d.v}m/s</span>`
-  ).join('');
-
+  buildParamGrid();
   resize();
   reset();
   requestAnimationFrame(frame);
