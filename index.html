@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>波隙作业 · Wave Gap Ops（往返任务）</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:#07101d; color:#dfeaf5;
+    font-family: system-ui, "Microsoft YaHei", "PingFang SC", sans-serif; }
+  header { height:56px; display:flex; align-items:center; gap:14px; padding:0 18px;
+    background:linear-gradient(90deg,#0d1b2e,#10243c); border-bottom:1px solid #1e3a55; }
+  header h1 { font-size:17px; margin:0; letter-spacing:1px; color:#7fe3f5; }
+  header .sub { font-size:12px; color:#7d95ad; }
+  .wrap { display:grid; grid-template-columns: 1fr 336px; height:calc(100% - 56px); }
+  .stage { position:relative; overflow:hidden; background:#081321; }
+  canvas { display:block; width:100%; height:100%; }
+  .hud { position:absolute; left:14px; top:12px; display:flex; gap:10px; flex-wrap:wrap;
+    pointer-events:none; max-width:calc(100% - 28px); }
+  .chip { background:rgba(9,22,38,.82); border:1px solid #254668; border-radius:8px;
+    padding:6px 10px; font-size:12px; color:#bcd4e8; backdrop-filter:blur(4px); }
+  .chip b { color:#7fe3f5; font-variant-numeric:tabular-nums; }
+  .chip.warn b { color:#ffb454; }
+  .chip.hot { border-color:#a84848; }
+  .chip.hot b { color:#ff6b6b; }
+  .chip.blink b { color:#c9a6ff; }
+  .chip.goal b { color:#ffd166; }
+  .toast { position:absolute; left:50%; top:64px; transform:translateX(-50%);
+    background:rgba(12,28,48,.92); border:1px solid #2c587d; border-radius:10px;
+    padding:9px 16px; font-size:13px; color:#ffd88a; opacity:0; transition:opacity .2s;
+    pointer-events:none; white-space:nowrap; }
+  .toast.on { opacity:1; }
+  .banner { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:10px; background:rgba(5,14,26,.78); text-align:center; }
+  .banner h2 { margin:0; font-size:30px; color:#7fe3f5; letter-spacing:2px; }
+  .banner p { margin:0; font-size:13px; color:#9fb8cf; }
+  .banner button { margin-top:10px; }
+  .hide { display:none !important; }
+  aside { background:#0c1828; border-left:1px solid #1e3a55; overflow-y:auto; padding:14px; }
+  aside h3 { font-size:13px; margin:16px 0 8px; color:#7fe3f5; letter-spacing:1px;
+    border-left:3px solid #4dd0e1; padding-left:8px; }
+  aside h3:first-child { margin-top:2px; }
+  .btn { background:#17466b; border:1px solid #2b6c9c; color:#e6f5ff; border-radius:8px;
+    padding:8px 12px; font-size:13px; cursor:pointer; }
+  .btn:hover { background:#1e5a89; }
+  .btn.primary { background:#0e7a86; border-color:#18b6c9; font-weight:600; }
+  .btn.primary:hover { background:#0f96a5; }
+  .row { display:flex; gap:8px; align-items:center; margin:8px 0; font-size:12px; color:#a9c1d8; }
+  .row label { flex:0 0 76px; }
+  .row input[type=range] { flex:1; accent-color:#4dd0e1; }
+  .row .val { flex:0 0 56px; text-align:right; color:#7fe3f5; font-variant-numeric:tabular-nums; }
+  select { background:#122a42; color:#dfeaf5; border:1px solid #2b5480; border-radius:6px;
+    padding:5px 8px; font-size:12px; flex:1; }
+  table { width:100%; border-collapse:collapse; font-size:11.5px; color:#b6cde2; }
+  th, td { border-bottom:1px solid #1c3349; padding:5px 3px; text-align:center; }
+  th { color:#7fe3f5; font-weight:600; }
+  .legend { display:flex; flex-wrap:wrap; gap:6px 12px; font-size:11.5px; color:#a9c1d8; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; }
+  details { font-size:12px; color:#a9c1d8; line-height:1.7; }
+  details summary { cursor:pointer; color:#7fe3f5; font-size:13px; margin-bottom:6px; }
+  details p { margin:6px 0; }
+  kbd { background:#17324c; border:1px solid #2b5480; border-radius:4px; padding:1px 5px;
+    font-size:11px; color:#cfe9ff; }
+  .foot { font-size:11px; color:#5f7994; margin-top:14px; line-height:1.6; }
+</style>
+</head>
+<body>
+<header>
+  <h1>波隙作业</h1>
+  <span class="sub">Wave Gap Ops · 往返任务版 · 五点旋转 180° · 波场 1400 m · 局部波痕视角</span>
+</header>
+<div class="wrap">
+  <div class="stage">
+    <canvas id="game"></canvas>
+    <div class="hud">
+      <div class="chip">生命 <b id="hLives">♥♥♥</b></div>
+      <div class="chip goal">阶段 <b id="hStage">去程 → a 点</b></div>
+      <div class="chip">任务时间 <b id="hTime">0.0 s</b></div>
+      <div class="chip">距 a 点 <b id="hDist">1500 m</b></div>
+      <div class="chip">距出生点 <b id="hHome">0 m</b></div>
+      <div class="chip">单步上限 <b id="hStep">55 m</b></div>
+      <div class="chip blink">闪现 <b id="hBlink">就绪</b></div>
+      <div class="chip">镜头 <b id="hCam">自动远景</b></div>
+      <div class="chip">场上波环 <b id="hWaves">25 道</b></div>
+      <div class="chip warn">最近波前 <b id="hEta">—</b></div>
+    </div>
+    <div class="toast" id="toast"></div>
+    <div class="banner hide" id="banner">
+      <h2 id="bTitle"></h2>
+      <p id="bText"></p>
+      <button class="btn primary" id="bBtn">重新执行</button>
+    </div>
+  </div>
+  <aside>
+    <h3>控制台</h3>
+    <div class="row" style="gap:8px">
+      <button class="btn primary" id="btnStart" style="flex:1">开始执行</button>
+      <button class="btn" id="btnReset" style="flex:1">重置</button>
+    </div>
+    <div class="row"><label>单步步幅</label>
+      <input type="range" id="sStep" min="0" max="55" step="1" value="55">
+      <span class="val" id="vStep">55 m</span></div>
+    <div class="row"><label>延迟 / 冷却</label>
+      <input type="range" id="sBlink" min="0.5" max="2" step="0.5" value="1">
+      <span class="val" id="vBlink">1.0 s</span></div>
+    <div class="row"><label>时间倍率</label>
+      <input type="range" id="sSpeed" min="1" max="4" step="0.5" value="2">
+      <span class="val" id="vSpeed">2.0×</span></div>
+    <div class="row"><label>开局预置波</label>
+      <input type="range" id="sPreset" min="0" max="8" step="1" value="5">
+      <span class="val" id="vPreset">5 道/点</span></div>
+    <div class="row"><label>角度基准</label>
+      <select id="selAngle">
+        <option value="math">数学极角（0°东，逆时针）</option>
+        <option value="bearing">罗盘方位（0°北，顺时针）</option>
+      </select></div>
+    <div class="row"><label>操作</label><span style="flex:1;color:#8ba5bd">
+      鼠标点击 = 朝该点闪现（≤步幅）<br>
+      <kbd>WASD</kbd>/<kbd>方向键</kbd> 按住 = 连续闪现<br>
+      <kbd>空格</kbd> 暂停 · <kbd>R</kbd> 重置 · <kbd>V</kbd> 局部锁定</span></div>
+
+    <h3>局部视角（缩小视野看波痕）</h3>
+    <div class="row" style="gap:8px">
+      <button class="btn primary" id="btnInset" style="flex:1">画中画：开</button>
+      <button class="btn" id="btnCam" style="flex:1">主视图：自动远景</button>
+    </div>
+    <div class="row"><label>视野半径</label>
+      <input type="range" id="sInsetR" min="40" max="250" step="10" value="100">
+      <span class="val" id="vInsetR">100 m</span></div>
+    <div style="font-size:11px;color:#8ba5bd;line-height:1.6;margin-top:4px">
+      右下角雷达以玩家为中心，把视野缩到设定半径：淡色同心弧是波前刚扫过留下的<b style="color:#7fe3f5">波动痕迹</b>（约 10 s 渐隐），粗亮弧是正在逼近的波环，圆边小三角指向各波源方向，下方给出最近波前的米数与秒数。<br>
+      按 <kbd>V</kbd> 或点「主视图」按钮，可把主画布也锁定到这个局部范围，放大看周围波痕；再按一次恢复自动远景。
+    </div>
+
+    <h3>原始数据一览（已整体旋转 180°）</h3>
+    <table>
+      <tr><th>点</th><th>基准</th><th>角度</th><th>距离</th><th>间隔</th><th>波速</th></tr>
+      <tr><td>a</td><td>原点</td><td>—</td><td>—</td><td>20 s</td><td>5 m/s</td></tr>
+      <tr><td>b</td><td>a</td><td>212.3°</td><td>50 m</td><td>17 s</td><td>4.5 m/s</td></tr>
+      <tr><td>c</td><td>a</td><td>312°</td><td>75 m</td><td>18 s</td><td>4.5 m/s</td></tr>
+      <tr><td>d</td><td>b</td><td>223.2°</td><td>35 m</td><td>16 s</td><td>5.5 m/s</td></tr>
+      <tr><td>e</td><td>c</td><td>308°</td><td>70 m</td><td>15 s</td><td>5.5 m/s</td></tr>
+    </table>
+    <div style="font-size:11px;color:#7d95ad;margin-top:6px;line-height:1.6">
+      五个方向角各 +180°（等价于整体绕 a 点旋转 180°、所有坐标取反）：b 32.3°→212.3°，c 132°→312°，d 43.2°→223.2°，e 128°→308°；a 仍在原点。
+    </div>
+    <div class="legend" id="legend" style="margin-top:8px"></div>
+    <div style="font-size:11.5px;color:#a9c1d8;margin-top:10px;line-height:1.7">
+      任务初始位置距 a 点 <b style="color:#7fe3f5">1500 m</b>（沿用 500 / 1000 / 1500 / 2000 m 距离刻度）；<br>
+      各点波最远扩散 <b style="color:#7fe3f5">1400 m</b>；<br>
+      开局按各点间隔回溯 <b style="color:#7fe3f5">5 道历史波</b>（共 25 道波纹已铺开），之后按原间隔续发；<br>
+      a 点作业需保持两个 <b style="color:#7fe3f5">1 m 宽 × 2 m 高</b> 椭圆 <b style="color:#7fe3f5">1 s</b>，
+      再填补洞穴 <b style="color:#7fe3f5">1 s</b>；<br>
+      单次移动距离 <b style="color:#7fe3f5">0–55 m</b>。
+    </div>
+
+    <h3>规则说明（对原始数据的解释）</h3>
+    <details open>
+      <p>1. <b>胜利条件 = 出生点 → a 点 → 返回出生点</b>。去程进入 a 点 5 m 圈并停稳，完成 2 秒作业（保持两个椭圆 1 s + 填补洞穴 1 s）即视为任务达成，立刻转入回程；回到出生点 25 m 绿色撤离圈即通关。b/c/d/e 现在是纯波源，不再需要作业。</p>
+      <p>2. 五个点各自按间隔向外发射圆形波，波速各不相同，<b>每道波最远扩散 1400 m</b>（出生点在 a 点外 1500 m，只比波场边界远 100 m）。波环（危险带约 2 m）扫到执行人员扣 1 点生命，共 3 点；同一次命中后 1.2 s 无敌，波源 3 m 内为发射盲区。</p>
+      <p>3. <b>移动为闪现</b>：指令 → 1.0 s 延迟（原地蓄力，画出落点与倒计时）→ 瞬间抵达 → 1.0 s 冷却，冷却结束才能发下一条。延迟与冷却是游戏秒，受时间倍率影响；右侧滑块可一起调 0.5–2.0 s。</p>
+      <p>4. 按住方向键会自动连续闪现；延迟 / 冷却期间的点击或按键会缓存一条预输入。走到 a 点任务圈会自动停下，松开按键即可开始作业。</p>
+      <p>5. 每条指令距离限制在 0–55 m。任务真实起点在 a 点正南 <b>1500 m</b>，单程满步约 28 次闪现，往返约 56 次；镜头随距离自动拉远 / 拉近，远景沿用 500–2000 m 同心圆刻度并标出 1400 m 波场边界，靠近后切回战术视图。</p>
+      <p>6. 波场扩大后，去程前段波还没扩出来相对安全，回程时波环已铺满大半张地图，需看「最近波前」（3 s 内变红）卡波隙撤离。角度默认按数学极角，可切换罗盘方位角（会重开一局）。通关计时含完整往返。</p>
+      <p>7. <b>局部视角</b>：右下角雷达把视野缩小到玩家周围 40–250 m（默认 100 m），与主视图的自动远景互不干扰。波环每前进约 1/6 视野半径就留下一道淡色弧线痕迹，10 游戏秒内渐隐，能看出波从哪来、刚扫过哪里、下一道还有多远；只记录进入局部视野的波，不影响命中判定。按 <kbd>V</kbd> 可让主视图同样锁定局部。</p>
+      <p>8. <b>开局预置波</b>：t=0 不再是空场。每个点按自己的间隔 T 回溯生成 5 道历史波（发射时刻 −T、−2T…−5T，半径 v·kT），共 25 道波纹开局就在场上向外扩散；之后仍从 t=T 起按原间隔继续发射，时间线连续，波长（相邻波环间距 = v·T）保持不变。最远一道历史波半径约 400–500 m，出生点 1500 m 外仍安全，但一进波场就得面对密集波环，不能再无脑直冲。右侧「开局预置波」滑块可设 0–8 道/点（0 = 回到空场开局），改动会重开一局；每道历史波还补了两道刚扫过的淡色痕迹，局部视角里能看出它走过的路径。</p>
+    </details>
+    <div class="foot">单文件离线可玩 · 最佳成绩保存在本机浏览器</div>
+  </aside>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const cv = document.getElementById('game');
+  const ctx = cv.getContext('2d');
+  const $ = id => document.getElementById(id);
+  const clamp = (v,a,b) => Math.max(a, Math.min(b,v));
+  const hyp = (x,y) => Math.hypot(x,y);
+  const DEG = Math.PI/180;
+
+  let W=0, H=0, DPR=1;
+  function resize(){
+    const r = cv.parentElement.getBoundingClientRect();
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.max(320, r.width); H = Math.max(260, r.height);
+    cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+    cv.style.width = W+'px'; cv.style.height = H+'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    computeView();
+  }
+  window.addEventListener('resize', resize);
+
+  // 整体绕 a 点旋转 180° = 所有方向角 +180° = 所有坐标取反
+  const DEF = [
+    {id:'a', base:null, deg:0,     dist:0,  T:20, v:5.0, color:'#ff6b6b'},
+    {id:'b', base:'a',  deg:212.3, dist:50, T:17, v:4.5, color:'#ffd166'},
+    {id:'c', base:'a',  deg:312,   dist:75, T:18, v:4.5, color:'#06d6a0'},
+    {id:'d', base:'b',  deg:223.2, dist:35, T:16, v:5.5, color:'#4cc9f0'},
+    {id:'e', base:'c',  deg:308,   dist:70, T:15, v:5.5, color:'#b388ff'},
+  ];
+
+  const CFG = {
+    angleMode:'math', step:55, timeScale:2,
+    spawnDist:1500, blinkDelay:1, blinkCool:1,
+    band:2.0, playerR:0.8, workR:5, homeR:25,
+    workSec:2, lives:3, maxR:1400, approachSec:1.8, invulnSec:1.2,
+    inset:true, insetR:100, lockLocal:false, trailSec:10,
+    presetWaves:5
+  };
+  const HOME = {x:0, y:-CFG.spawnDist};
+
+  let VIEW = {cx:0, cy:0, scale:1};
+  let TAC  = {cx:0, cy:0, scale:1};
+  let G = null;
+  let lastTs = 0;
+
+  function polar(o, deg, dist){
+    const a = (CFG.angleMode === 'bearing' ? (90 - deg) : deg) * DEG;
+    return {x:o.x + Math.cos(a)*dist, y:o.y + Math.sin(a)*dist};
+  }
+  function buildNodes(){
+    const out = [], map = {};
+    for(const d of DEF){
+      const o = d.base ? map[d.base] : {x:0,y:0};
+      const pos = d.base ? polar(o, d.deg, d.dist) : {x:0,y:0};
+      const n = {...d, x:pos.x, y:pos.y};
+      out.push(n); map[d.id] = n;
+    }
+    return out;
+  }
+  function computeView(){
+    const nodes = buildNodes();
+    let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+    for(const n of nodes){
+      minx=Math.min(minx,n.x); maxx=Math.max(maxx,n.x);
+      miny=Math.min(miny,n.y); maxy=Math.max(maxy,n.y);
+    }
+    minx-=45; maxx+=45; miny-=45; maxy+=45;
+    const s = Math.min((W-30)/(maxx-minx), (H-30)/(maxy-miny));
+    TAC = {cx:(minx+maxx)/2, cy:(miny+maxy)/2, scale:clamp(s,0.6,14)};
+    if(G) VIEW = targetView();
+  }
+  // 远景 / 战术视图：始终保证 a 点与执行人员同时在画面内
+  function targetView(){
+    const p = G.player;
+    if(CFG.lockLocal){
+      return {cx:p.x, cy:p.y, scale:clamp((Math.min(W,H)*0.42)/CFG.insetR, 0.05, 14)};
+    }
+    const d = hyp(p.x-HOME.x, p.y-HOME.y) + hyp(p.x,p.y);
+    const kc = clamp((d-160)/260, 0, 1);
+    const cx = TAC.cx*(1-kc) + (p.x/2)*kc;
+    const cy = TAC.cy*(1-kc) + (p.y/2)*kc;
+    const sFit = (Math.min(W,H)*0.40) / (hyp(p.x,p.y)/2 + 90);
+    const scale = clamp(Math.min(TAC.scale, sFit), 0.04, 14);
+    return {cx, cy, scale};
+  }
+  function smoothView(realDt){
+    if(!G) return;
+    const t = targetView();
+    const a = 1 - Math.exp(-realDt*7);
+    VIEW.cx += (t.cx-VIEW.cx)*a;
+    VIEW.cy += (t.cy-VIEW.cy)*a;
+    VIEW.scale = Math.exp(Math.log(VIEW.scale) + (Math.log(t.scale)-Math.log(VIEW.scale))*a);
+  }
+  const w2s = (x,y) => ({x: W/2 + (x-VIEW.cx)*VIEW.scale, y: H/2 - (y-VIEW.cy)*VIEW.scale});
+  const s2w = (sx,sy) => ({x: VIEW.cx + (sx-W/2)/VIEW.scale, y: VIEW.cy - (sy-H/2)/VIEW.scale});
+  function rgba(hex,a){
+    const n = parseInt(hex.slice(1),16);
+    return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+  }
+  // 圆弧是否穿过屏幕：只看圆心到矩形的最近/最远距离是否夹住半径。
+  // 不能用「半径 > 屏幕对角线就跳过」——圆心同样可以在屏幕外很远，
+  // 此时半径很大的波环恰好横穿玩家所在区域，跳过绘制就会造成「看不见却挨打」。
+  // 命中时玩家必在屏幕矩形内，且 |玩家到圆心像素距 - rp| < band*scale，
+  // 故 rp 一定落在 [dmin-band*scale, dmax+band*scale]，pad 足够覆盖 → 能伤害的波环必被绘制。
+  function arcVisible(c, rp, pad=40){
+    if(rp < 1) return false;
+    const dx = Math.max(0, -c.x, c.x - W);
+    const dy = Math.max(0, -c.y, c.y - H);
+    const dmin = Math.hypot(dx, dy);                                   // 圆心 → 矩形最近点
+    const dmax = Math.hypot(Math.max(c.x, W-c.x), Math.max(c.y, H-c.y)); // 圆心 → 矩形最远角
+    return rp >= dmin - pad && rp <= dmax + pad;
+  }
+  function loadBest(){
+    try { return parseFloat(localStorage.getItem('wavegap.best.roundtrip')||'') || null; }
+    catch(e){ return null; }
+  }
+  function saveBest(v){
+    try { localStorage.setItem('wavegap.best.roundtrip', String(v)); } catch(e){}
+  }
+  function toast(msg, sec=1.6){
+    G.msg = msg; G.msgT = sec;
+    const el = $('toast'); el.textContent = msg; el.classList.add('on');
+  }
+  function clearToast(){ $('toast').classList.remove('on'); }
+
+  function reset(){
+    const nodes = buildNodes();
+    // 开局预置：每个点按自身间隔回溯 5 道历史波（发射时刻 -T…-5T），
+    // 开局瞬间波场就已铺开；后续仍从 t=T 起按原间隔继续发射，时间线连续。
+    const waves=[], trails=[];
+    for(let i=0;i<nodes.length;i++){
+      const n=nodes[i];
+      for(let k=CFG.presetWaves;k>=1;k--){
+        const r = k*n.T*n.v;
+        if(r > CFG.maxR) continue;
+        waves.push({i, t0:-k*n.T, r, preset:true});
+        // 给历史波补两道"刚扫过"的痕迹，让局部视角一进波场就能读到波走过的路径
+        const s = CFG.insetR/6;
+        for(let m=1;m<=2;m++){
+          const rr = r - m*s;
+          if(rr>3) trails.push({i, r:rr, t:-m*s/n.v, preset:true});
+        }
+      }
+    }
+    G = {
+      phase:'ready', approachT:0, t:0, paused:false,
+      nodes, waves, trails, nextEmit:nodes.map(n=>n.T),
+      player:{x:HOME.x, y:HOME.y, blink:{phase:'idle', t:0, target:null}, invuln:0},
+      queued:null, held:new Set(), warned:false,
+      stage:'outbound', aDone:false,
+      lives:CFG.lives, work:null,
+      msg:'', msgT:0, best:loadBest()
+    };
+    computeView();
+    VIEW = targetView();
+    $('banner').classList.add('hide');
+    $('btnStart').textContent = '开始执行';
+    clearToast();
+    updateHUD();
+  }
+
+  function nearA(){
+    const p=G.player, a=G.nodes[0];
+    return !G.aDone && hyp(p.x-a.x, p.y-a.y) <= CFG.workR;
+  }
+  function startBlink(u){
+    const p = G.player;
+    const dist = Math.min(u.dist, CFG.step);
+    if(CFG.step<=0 || dist<0.3) return false;
+    p.blink = {phase:'delay', t:0, target:{x:p.x+u.ux*dist, y:p.y+u.uy*dist}};
+    G.work = null;                 // 发出指令即中断作业
+    return true;
+  }
+  function issueMove(tx,ty){
+    if(G.phase!=='play' || G.paused) return;
+    const p = G.player;
+    if(CFG.step<=0){ toast('单步步幅为 0，无法闪现'); return; }
+    const dx=tx-p.x, dy=ty-p.y, d=hyp(dx,dy);
+    if(d<0.3){ toast('已在目标附近'); return; }
+    const u = {ux:dx/d, uy:dy/d, dist:Math.min(d, CFG.step)};
+    if(p.blink.phase!=='idle'){ G.queued = u; return; }   // 预输入一条
+    if(startBlink(u)) toast(`闪现指令 · ${CFG.blinkDelay.toFixed(1)} s 后到达`, 1.0);
+  }
+  function heldUnit(){
+    let x=0,y=0;
+    if(G.held.has('up')) y+=1;
+    if(G.held.has('down')) y-=1;
+    if(G.held.has('right')) x+=1;
+    if(G.held.has('left')) x-=1;
+    const m=hyp(x,y);
+    return m ? {ux:x/m, uy:y/m, dist:CFG.step} : null;
+  }
+  function dirKey(k){
+    if(k==='w'||k==='arrowup') return 'up';
+    if(k==='s'||k==='arrowdown') return 'down';
+    if(k==='a'||k==='arrowleft') return 'left';
+    if(k==='d'||k==='arrowright') return 'right';
+    return null;
+  }
+  window.addEventListener('keydown', e=>{
+    const k = e.key.toLowerCase();
+    if(k===' '){ e.preventDefault(); toggleStart(); return; }
+    if(k==='r'){ reset(); return; }
+    if(k==='v'){ e.preventDefault(); toggleCam(); return; }
+    const dir = dirKey(k);
+    if(!dir) return;
+    e.preventDefault();
+    G.held.add(dir);
+    if(e.repeat) return;           // 按住时靠自动连闪，不刷 toast
+    const u = heldUnit();
+    if(u){
+      const p=G.player;
+      issueMove(p.x+u.ux*u.dist, p.y+u.uy*u.dist);
+    }
+  });
+  window.addEventListener('keyup', e=>{
+    const dir = dirKey(e.key.toLowerCase());
+    if(dir && G) G.held.delete(dir);
+  });
+  window.addEventListener('blur', ()=>{ if(G) G.held.clear(); });
+  cv.addEventListener('click', e=>{
+    const r = cv.getBoundingClientRect();
+    const w = s2w(e.clientX-r.left, e.clientY-r.top);
+    issueMove(w.x, w.y);
+  });
+
+  function toggleStart(){
+    if(G.phase==='ready'){
+      G.phase='approach'; G.approachT=0;
+      $('btnStart').textContent='暂停';
+      toast(`部署中 · 出生点距 a 点 ${CFG.spawnDist} m · 开局已有 ${G.waves.length} 道历史波`, 1.8);
+    } else if(G.phase==='win' || G.phase==='lose'){
+      reset(); G.phase='approach'; G.approachT=0; $('btnStart').textContent='暂停';
+    } else {
+      G.paused = !G.paused;
+      $('btnStart').textContent = G.paused ? '继续' : '暂停';
+      toast(G.paused ? '已暂停' : '继续执行', 0.9);
+    }
+  }
+  $('btnStart').addEventListener('click', toggleStart);
+  $('btnReset').addEventListener('click', reset);
+  $('bBtn').addEventListener('click', ()=>{ reset(); G.phase='approach'; G.approachT=0; $('btnStart').textContent='暂停'; });
+  $('sStep').addEventListener('input', e=>{
+    CFG.step = +e.target.value;
+    $('vStep').textContent = CFG.step+' m';
+    $('hStep').textContent = CFG.step+' m';
+  });
+  $('sBlink').addEventListener('input', e=>{
+    const v = +e.target.value;
+    CFG.blinkDelay = v; CFG.blinkCool = v;
+    $('vBlink').textContent = v.toFixed(1)+' s';
+  });
+  $('sSpeed').addEventListener('input', e=>{
+    CFG.timeScale = +e.target.value;
+    $('vSpeed').textContent = CFG.timeScale.toFixed(1)+'×';
+  });
+  $('sPreset').addEventListener('input', e=>{
+    $('vPreset').textContent = (+e.target.value)+' 道/点';
+  });
+  $('sPreset').addEventListener('change', e=>{
+    CFG.presetWaves = +e.target.value;
+    reset();
+    toast(`开局预置波：每点 ${CFG.presetWaves} 道（共 ${CFG.presetWaves*DEF.length} 道），本局重置`, 2.0);
+  });
+  $('selAngle').addEventListener('change', e=>{
+    CFG.angleMode = e.target.value; reset(); toast('角度基准已切换，本局重置', 1.6);
+  });
+  function toggleCam(){
+    CFG.lockLocal = !CFG.lockLocal;
+    $('btnCam').textContent = CFG.lockLocal ? '主视图：局部锁定' : '主视图：自动远景';
+    $('btnCam').classList.toggle('primary', CFG.lockLocal);
+    $('hCam').textContent = CFG.lockLocal ? `局部 ${CFG.insetR} m` : '自动远景';
+    toast(CFG.lockLocal ? `主视图锁定玩家周围 ${CFG.insetR} m` : '主视图恢复自动远景', 1.6);
+  }
+  $('btnCam').addEventListener('click', toggleCam);
+  $('btnInset').addEventListener('click', ()=>{
+    CFG.inset = !CFG.inset;
+    $('btnInset').textContent = CFG.inset ? '画中画：开' : '画中画：关';
+    $('btnInset').classList.toggle('primary', CFG.inset);
+  });
+  $('sInsetR').addEventListener('input', e=>{
+    CFG.insetR = +e.target.value;
+    $('vInsetR').textContent = CFG.insetR+' m';
+    if(CFG.lockLocal) $('hCam').textContent = `局部 ${CFG.insetR} m`;
+  });
+
+  function finish(win){
+    G.phase = win ? 'win' : 'lose';
+    G.paused = false; G.held.clear();
+    $('btnStart').textContent = '重新执行';
+    const b = $('banner'); b.classList.remove('hide');
+    if(win){
+      $('bTitle').textContent = '往返完成';
+      const t = G.t;
+      let extra = '';
+      if(G.best==null || t<G.best){ G.best=t; saveBest(t); extra=' · 新纪录'; }
+      $('bText').textContent = `出生点 → a 点作业 → 返回出生点，用时 ${t.toFixed(1)} s，剩余生命 ${G.lives}${extra}（最佳 ${G.best.toFixed(1)} s）`;
+    } else {
+      $('bTitle').textContent = '任务失败';
+      const st = G.stage==='outbound' ? '去程（未抵达 a 点）' : '回程（未返回出生点）';
+      $('bText').textContent = `生命耗尽于${st}，用时 ${G.t.toFixed(1)} s`;
+    }
+  }
+
+  function update(gdt, realDt){
+    if(G.msgT>0){ G.msgT-=realDt; if(G.msgT<=0) clearToast(); }
+
+    if(G.phase==='approach'){
+      G.approachT += realDt;
+      if(G.approachT>=CFG.approachSec){
+        G.phase='play'; G.t=0; G.nextEmit=G.nodes.map(n=>n.T);
+        toast(`部署完毕 · 五点各已按间隔铺开 ${CFG.presetWaves} 道历史波，冲进去先看波隙`, 2.6);
+      }
+      return;
+    }
+    if(G.phase!=='play' || G.paused) return;
+
+    G.t += gdt;
+    const p = G.player, bl = p.blink;
+    p.invuln = Math.max(0, p.invuln - gdt);
+    if(!G.warned && hyp(p.x,p.y) <= CFG.maxR + 40){
+      G.warned = true;
+      toast('已进入波场 · 看「最近波前」等波隙再闪', 2.6);
+    }
+
+    // 发射
+    for(let i=0;i<G.nodes.length;i++){
+      while(G.t >= G.nextEmit[i]){
+        G.waves.push({i, t0:G.nextEmit[i], r:0});
+        G.nextEmit[i] += G.nodes[i].T;
+      }
+    }
+    G.waves = G.waves.filter(w=>{
+      w.r = G.nodes[w.i].v * (G.t - w.t0);
+      return w.r <= CFG.maxR;
+    });
+
+    // 波动痕迹：波前每推进约 1/6 视野半径留下一道淡弧，仅记录进入局部视野的部分
+    const sampleStep = CFG.insetR/6;
+    for(const w of G.waves){
+      const n = G.nodes[w.i];
+      const dist = hyp(p.x-n.x, p.y-n.y);
+      if(Math.abs(dist - w.r) > CFG.insetR*1.15){ w.ls = -1; continue; }
+      if(w.ls === undefined || w.ls < 0 || w.r - w.ls >= sampleStep){
+        w.ls = w.r;
+        G.trails.push({i:w.i, r:w.r, t:G.t});
+      }
+    }
+    if(G.trails.length){
+      G.trails = G.trails.filter(tr => G.t - tr.t <= CFG.trailSec);
+      if(G.trails.length > 320) G.trails.splice(0, G.trails.length-320);
+    }
+
+    // 闪现状态机：延迟 → 瞬移 → 冷却 → 就绪
+    if(bl.phase==='delay'){
+      bl.t += gdt;
+      if(bl.t >= CFG.blinkDelay){
+        p.x = bl.target.x; p.y = bl.target.y;
+        bl.phase='cool'; bl.t=0; bl.target=null;
+      }
+    } else if(bl.phase==='cool'){
+      bl.t += gdt;
+      if(bl.t >= CFG.blinkCool){
+        bl.phase='idle'; bl.t=0;
+        if(G.queued && !nearA()){
+          const q=G.queued; G.queued=null; startBlink(q);   // 自动执行预输入
+        } else G.queued=null;
+      }
+    } else if(G.held.size && !nearA()){
+      const u=heldUnit();
+      if(u) startBlink(u);                                   // 按住方向键连续闪现
+    }
+
+    // 去程：仅在 a 点作业
+    let cur=null;
+    if(!G.aDone && (bl.phase==='idle' || bl.phase==='cool') && nearA()) cur=G.nodes[0];
+    if(cur){
+      if(!G.work || G.work.id!==cur.id) G.work={id:cur.id, t:0};
+      G.work.t += gdt;
+      if(G.work.t >= CFG.workSec){
+        G.aDone = true; G.stage='return'; G.work=null;
+        toast('a 点作业完成 · 转入回程，返回出生点撤离', 2.6);
+      }
+    } else G.work=null;
+
+    // 回程：进入撤离圈即胜利
+    if(G.aDone && hyp(p.x-HOME.x, p.y-HOME.y) <= CFG.homeR){ finish(true); return; }
+
+    // 命中：延迟期间人在旧位置，瞬移后人在新位置
+    if(p.invuln<=0){
+      for(const w of G.waves){
+        if(w.r < 3) continue;
+        const n=G.nodes[w.i];
+        const dist=hyp(p.x-n.x, p.y-n.y);
+        if(Math.abs(dist - w.r) < CFG.band/2 + CFG.playerR){
+          G.lives--; p.invuln=CFG.invulnSec;
+          if(G.work){ toast(`被「${n.id}」点波环命中，a 点作业中断`, 1.8); G.work=null; }
+          else toast(`被「${n.id}」点波环命中 · 剩余生命 ${G.lives}`, 1.5);
+          if(G.lives<=0){ finish(false); return; }
+          break;
+        }
+      }
+    }
+  }
+
+  // 正在逼近玩家的最近一道波前：还差多少米、多少秒、来自哪个点
+  function frontInfo(){
+    if(!G || G.phase!=='play') return null;
+    const p=G.player; let best=null;
+    for(let i=0;i<G.nodes.length;i++){
+      const n=G.nodes[i], dist=hyp(p.x-n.x,p.y-n.y);
+      if(dist > CFG.maxR) continue;     // 该点波最远 1400 m，覆盖不到
+      for(const w of G.waves){
+        if(w.i!==i || w.r>=dist || w.r<3) continue;
+        const gap=dist-w.r, eta=gap/n.v;
+        if(best===null || eta<best.eta) best={gap, eta, i};
+      }
+      const eta2 = G.nextEmit[i] - G.t + dist/n.v;
+      if(best===null || eta2<best.eta) best={gap:dist, eta:eta2, i};
+    }
+    return best;
+  }
+  function nextEta(){
+    const f=frontInfo();
+    return f ? f.eta : null;
+  }
+
+  function updateHUD(){
+    if(!G) return;
+    const p=G.player, bl=p.blink;
+    $('hLives').textContent = '♥'.repeat(Math.max(0,G.lives)) + '·'.repeat(Math.max(0,CFG.lives-G.lives));
+    $('hStage').textContent = G.stage==='outbound' ? (G.aDone ? '回程 → 出生点' : '去程 → a 点') : '回程 → 出生点';
+    $('hTime').textContent = G.t.toFixed(1)+' s';
+    $('hDist').textContent = Math.round(hyp(p.x,p.y))+' m';
+    $('hHome').textContent = Math.round(hyp(p.x-HOME.x,p.y-HOME.y))+' m';
+    $('hStep').textContent = CFG.step+' m';
+    $('hBlink').textContent = bl.phase==='delay'
+      ? `延迟 ${Math.max(0,CFG.blinkDelay-bl.t).toFixed(1)}s`
+      : bl.phase==='cool'
+        ? `冷却 ${Math.max(0,CFG.blinkCool-bl.t).toFixed(1)}s`
+        : '就绪';
+    $('hCam').textContent = CFG.lockLocal ? `局部 ${CFG.insetR} m` : '自动远景';
+    $('hWaves').textContent = G.waves.length + ' 道';
+    const f = frontInfo();
+    $('hEta').textContent = (G.phase==='play' && !f) ? '波场外'
+      : !f ? '—' : `${Math.round(f.gap)} m · ${f.eta.toFixed(1)} s`;
+    $('hEta').parentElement.classList.toggle('hot', G.phase==='play' && !!f && f.eta<3);
+  }
+
+  function grid(){
+    ctx.fillStyle='#081321'; ctx.fillRect(0,0,W,H);
+    const s=VIEW.scale;
+    const x0=VIEW.cx-W/2/s, x1=VIEW.cx+W/2/s;
+    const y0=VIEW.cy-H/2/s, y1=VIEW.cy+H/2/s;
+    const cand=[10,20,50,100,200,500,1000,2000];
+    const gs=cand.find(v=>v*s>=55) || 5000;
+    ctx.lineWidth=1; ctx.font='10px system-ui'; ctx.textAlign='left'; ctx.textBaseline='top';
+    for(let x=Math.ceil(x0/gs)*gs; x<=x1; x+=gs){
+      const p=w2s(x,0).x; const major=(Math.round(x)%(gs*5)===0);
+      ctx.strokeStyle = major ? 'rgba(90,150,200,.16)' : 'rgba(90,150,200,.06)';
+      ctx.beginPath(); ctx.moveTo(p,0); ctx.lineTo(p,H); ctx.stroke();
+      if(major){ ctx.fillStyle='rgba(140,180,215,.35)'; ctx.fillText(x+'m', p+3, 4); }
+    }
+    for(let y=Math.ceil(y0/gs)*gs; y<=y1; y+=gs){
+      const p=w2s(0,y).y; const major=(Math.round(y)%(gs*5)===0);
+      ctx.strokeStyle = major ? 'rgba(90,150,200,.16)' : 'rgba(90,150,200,.06)';
+      ctx.beginPath(); ctx.moveTo(0,p); ctx.lineTo(W,p); ctx.stroke();
+      if(major){ ctx.fillStyle='rgba(140,180,215,.35)'; ctx.fillText(y+'m', 4, p+3); }
+    }
+    // 远景距离刻度 + 1400 m 波场边界
+    if(s < 0.9){
+      const c=w2s(0,0);
+      ctx.textAlign='left'; ctx.textBaseline='bottom'; ctx.font='10px system-ui';
+      for(const m of [500,1000,1500,2000]){
+        const r=m*s;
+        if(!arcVisible(c, r, 8)) continue;
+        ctx.beginPath(); ctx.arc(c.x,c.y,r,0,Math.PI*2);
+        ctx.setLineDash([4,7]); ctx.strokeStyle='rgba(127,227,245,.20)'; ctx.lineWidth=1;
+        ctx.stroke(); ctx.setLineDash([]);
+        if(c.y-r>12){ ctx.fillStyle='rgba(127,227,245,.45)'; ctx.fillText(m+' m', c.x+4, c.y-r-3); }
+      }
+      const rb=CFG.maxR*s;
+      if(arcVisible(c, rb, 8)){
+        ctx.beginPath(); ctx.arc(c.x,c.y,rb,0,Math.PI*2);
+        ctx.setLineDash([9,7]); ctx.strokeStyle='rgba(255,107,107,.42)'; ctx.lineWidth=1.6;
+        ctx.stroke(); ctx.setLineDash([]);
+        if(c.y-rb>12){
+          ctx.fillStyle='rgba(255,150,150,.7)';
+          ctx.fillText('波场边界 1400 m', c.x+4, c.y-rb-4);
+        }
+      }
+    }
+  }
+
+  function drawWaves(){
+    for(const w of G.waves){
+      const n=G.nodes[w.i], c=w2s(n.x,n.y), rp=w.r*VIEW.scale;
+      if(!arcVisible(c, rp)) continue;
+      const a = 0.66*clamp(1 - w.r/CFG.maxR, 0.22, 1);
+      ctx.beginPath(); ctx.arc(c.x,c.y,rp,0,Math.PI*2);
+      ctx.strokeStyle=rgba(n.color,a);
+      ctx.lineWidth=Math.max(1.5, CFG.band*VIEW.scale);
+      if(rp<180){ ctx.shadowColor=n.color; ctx.shadowBlur=9; }
+      ctx.stroke(); ctx.shadowBlur=0;
+    }
+  }
+
+  // 主视图里的波动痕迹（与右下角雷达共用同一批痕迹数据）
+  function drawTrails(map, sc){
+    for(const tr of G.trails){
+      const age = G.t - tr.t;
+      const a = 0.24*clamp(1 - age/CFG.trailSec, 0, 1);
+      if(a < 0.012) continue;
+      const n = G.nodes[tr.i], c = map(n.x,n.y), rp = tr.r*sc;
+      if(!arcVisible(c, rp)) continue;
+      ctx.beginPath(); ctx.arc(c.x,c.y,rp,0,Math.PI*2);
+      ctx.strokeStyle = rgba(n.color,a); ctx.lineWidth = 1; ctx.stroke();
+    }
+  }
+
+  function insetGeom(){
+    const R = clamp(Math.min(W*0.24, H*0.28, 210), 96, 210);
+    return {R, cx: W-R-22, cy: H-R-34};
+  }
+
+  // 缩小的局部视角：以玩家为中心，只看周围 insetR 米内的波环与波痕
+  function drawInset(){
+    if(!CFG.inset || !G || (G.phase!=='play' && G.phase!=='win' && G.phase!=='lose')) return;
+    const {R,cx,cy} = insetGeom();
+    const p = G.player, sc = R/CFG.insetR;
+    const i2s = (x,y)=>({x:cx+(x-p.x)*sc, y:cy-(y-p.y)*sc});
+    const PI2 = Math.PI*2;
+
+    ctx.font='bold 11px system-ui'; ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.fillStyle='rgba(190,222,240,.9)';
+    ctx.fillText(`局部视角 · R ${CFG.insetR} m`, cx, cy-R-9);
+    ctx.font='10px system-ui'; ctx.textBaseline='top';
+    ctx.fillStyle='rgba(130,165,195,.8)';
+    ctx.fillText(CFG.lockLocal ? '主视图已同步锁定' : 'V 锁定主视图', cx, cy+R+7);
+
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx,cy,R,0,PI2); ctx.clip();
+    ctx.fillStyle='rgba(6,17,30,.92)'; ctx.fillRect(cx-R,cy-R,R*2,R*2);
+
+    // 距离环与十字准线
+    ctx.lineWidth=1;
+    for(let k=1;k<=4;k++){
+      const rr=R*k/4;
+      ctx.beginPath(); ctx.arc(cx,cy,rr,0,PI2);
+      ctx.strokeStyle= k===4 ? 'rgba(127,227,245,.35)' : 'rgba(90,150,200,.18)';
+      ctx.stroke();
+      ctx.font='9px system-ui'; ctx.textAlign='left'; ctx.textBaseline='top';
+      ctx.fillStyle='rgba(140,180,215,.5)';
+      ctx.fillText(`${Math.round(CFG.insetR*k/4)}m`, cx+3, cy-rr+2);
+    }
+    ctx.beginPath();
+    ctx.moveTo(cx-R,cy); ctx.lineTo(cx+R,cy);
+    ctx.moveTo(cx,cy-R); ctx.lineTo(cx,cy+R);
+    ctx.strokeStyle='rgba(90,150,200,.22)'; ctx.stroke();
+
+    // 波前刚扫过留下的淡色痕迹
+    for(const tr of G.trails){
+      const n=G.nodes[tr.i], dist=hyp(p.x-n.x,p.y-n.y);
+      if(Math.abs(dist-tr.r) > CFG.insetR+CFG.band) continue;
+      const age=G.t-tr.t, a=0.30*clamp(1-age/CFG.trailSec,0,1);
+      if(a<0.012) continue;
+      const c=i2s(n.x,n.y), rp=tr.r*sc;
+      if(rp<1) continue;
+      ctx.beginPath(); ctx.arc(c.x,c.y,rp,0,PI2);
+      ctx.strokeStyle=rgba(n.color,a); ctx.lineWidth=1; ctx.stroke();
+    }
+
+    // 正在逼近的波环
+    for(const w of G.waves){
+      if(w.r<3) continue;
+      const n=G.nodes[w.i], dist=hyp(p.x-n.x,p.y-n.y);
+      if(Math.abs(dist-w.r) > CFG.insetR+CFG.band) continue;
+      const c=i2s(n.x,n.y), rp=w.r*sc;
+      if(rp<1) continue;
+      const a=0.85*clamp(1-w.r/CFG.maxR,0.25,1);
+      ctx.beginPath(); ctx.arc(c.x,c.y,rp,0,PI2);
+      ctx.strokeStyle=rgba(n.color,a);
+      ctx.lineWidth=Math.max(2.5, CFG.band*sc);
+      ctx.shadowColor=n.color; ctx.shadowBlur=8; ctx.stroke(); ctx.shadowBlur=0;
+    }
+
+    // 视野内的波源点、a 点目标圈、出生点撤离圈
+    for(const n of G.nodes){
+      const d=hyp(p.x-n.x,p.y-n.y);
+      if(d>CFG.insetR*1.05) continue;
+      const c=i2s(n.x,n.y);
+      if(n.id==='a' && !G.aDone){
+        ctx.beginPath(); ctx.arc(c.x,c.y,Math.max(4,CFG.workR*sc),0,PI2);
+        ctx.setLineDash([3,3]); ctx.strokeStyle='rgba(255,209,102,.85)';
+        ctx.lineWidth=1.2; ctx.stroke(); ctx.setLineDash([]);
+      }
+      ctx.beginPath(); ctx.arc(c.x,c.y,3.5,0,PI2);
+      ctx.fillStyle = (n.id==='a'&&G.aDone) ? '#5ce6a0' : n.color; ctx.fill();
+      ctx.font='9px system-ui'; ctx.textAlign='center'; ctx.textBaseline='bottom';
+      ctx.fillStyle='rgba(220,238,250,.85)';
+      ctx.fillText(n.id.toUpperCase(), c.x, c.y-6);
+    }
+    if(hyp(p.x-HOME.x,p.y-HOME.y) <= CFG.insetR+CFG.homeR){
+      const c=i2s(HOME.x,HOME.y);
+      ctx.beginPath(); ctx.arc(c.x,c.y,Math.max(3,CFG.homeR*sc),0,PI2);
+      ctx.setLineDash([3,3]); ctx.lineWidth=1.2;
+      ctx.strokeStyle= G.stage==='return' ? 'rgba(120,230,170,.9)' : 'rgba(120,230,170,.45)';
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    // 玩家中心准星
+    ctx.beginPath(); ctx.arc(cx,cy,4.5,0,PI2);
+    ctx.fillStyle='#eafcff'; ctx.shadowColor='#7fe3f5'; ctx.shadowBlur=9;
+    ctx.fill(); ctx.shadowBlur=0;
+    ctx.beginPath(); ctx.arc(cx,cy,9,0,PI2);
+    ctx.strokeStyle= p.invuln>0 ? 'rgba(255,180,84,.9)' : 'rgba(127,227,245,.7)';
+    ctx.lineWidth=1.2; ctx.stroke();
+    ctx.restore();
+
+    // 圆框 + 圆边方向箭头（指向各波源）
+    ctx.beginPath(); ctx.arc(cx,cy,R,0,PI2);
+    ctx.strokeStyle='rgba(127,227,245,.55)'; ctx.lineWidth=1.6; ctx.stroke();
+    for(const n of G.nodes){
+      const ang=Math.atan2(-(n.y-p.y), n.x-p.x);
+      const ex=cx+Math.cos(ang)*(R-6), ey=cy+Math.sin(ang)*(R-6);
+      ctx.save(); ctx.translate(ex,ey); ctx.rotate(ang);
+      ctx.beginPath(); ctx.moveTo(6,0); ctx.lineTo(-4,3.5); ctx.lineTo(-4,-3.5); ctx.closePath();
+      ctx.fillStyle=n.color; ctx.globalAlpha=.85; ctx.fill(); ctx.restore();
+    }
+
+    const f=frontInfo();
+    ctx.font='10px system-ui'; ctx.textAlign='center'; ctx.textBaseline='top';
+    ctx.fillStyle = f && f.eta<3 ? '#ff8b8b' : '#9fdcec';
+    ctx.fillText(f ? `最近波前 ${Math.round(f.gap)} m · ${f.eta.toFixed(1)} s（${G.nodes[f.i].id.toUpperCase()} 点）`
+                   : '周围无逼近波前', cx, cy+R+21);
+  }
+
+  function drawHome(){
+    const c=w2s(HOME.x,HOME.y);
+    const r=Math.max(9, CFG.homeR*VIEW.scale);
+    if(!arcVisible(c, r, 12)) return;
+    const on = G.stage==='return';
+    ctx.beginPath(); ctx.arc(c.x,c.y,r,0,Math.PI*2);
+    ctx.setLineDash([5,4]); ctx.lineWidth=2;
+    ctx.strokeStyle= on ? 'rgba(120,230,170,.95)' : 'rgba(120,230,170,.45)';
+    ctx.stroke(); ctx.setLineDash([]);
+    if(on){
+      const pulse=0.55+0.4*Math.sin(G.t*3);
+      ctx.beginPath(); ctx.arc(c.x,c.y,r+6,0,Math.PI*2);
+      ctx.strokeStyle=`rgba(120,230,170,${pulse*0.5})`; ctx.lineWidth=1.5; ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(c.x,c.y,4,0,Math.PI*2);
+    ctx.fillStyle='#78e6aa'; ctx.fill();
+    ctx.font='11px system-ui'; ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.fillStyle= on ? '#9ff0c4' : 'rgba(160,215,190,.7)';
+    ctx.fillText(on ? '出生点 · 撤离' : '出生点', c.x, c.y-r-5);
+  }
+
+  function drawNodes(){
+    const compact = VIEW.scale < 1.2;
+    for(const n of G.nodes){
+      const c=w2s(n.x,n.y);
+      const isA = n.id==='a';
+      const done = isA && G.aDone;
+      // 只有 a 点保留 5 m 作业圈
+      if(isA && !done){
+        const wr=Math.max(compact?4:5, CFG.workR*VIEW.scale);
+        ctx.beginPath(); ctx.arc(c.x,c.y,wr,0,Math.PI*2);
+        ctx.setLineDash([4,4]); ctx.lineWidth=1.5;
+        ctx.strokeStyle='rgba(255,209,102,.8)'; ctx.stroke(); ctx.setLineDash([]);
+        if(!compact){
+          const pulse=0.35+0.3*Math.sin(G.t*3);
+          ctx.beginPath(); ctx.arc(c.x,c.y,wr+4,0,Math.PI*2);
+          ctx.strokeStyle=`rgba(255,209,102,${pulse})`; ctx.lineWidth=1.2; ctx.stroke();
+        }
+      }
+      ctx.beginPath(); ctx.arc(c.x,c.y,compact?4:6,0,Math.PI*2);
+      ctx.fillStyle= done ? '#5ce6a0' : n.color;
+      ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=compact?6:12; ctx.fill(); ctx.shadowBlur=0;
+      if(!compact){
+        ctx.beginPath(); ctx.arc(c.x,c.y,11,0,Math.PI*2);
+        ctx.strokeStyle=rgba(n.color,.35); ctx.lineWidth=1; ctx.stroke();
+      }
+      ctx.font= compact ? '10px system-ui' : 'bold 13px system-ui';
+      ctx.textAlign='center'; ctx.textBaseline='bottom';
+      ctx.fillStyle= done ? '#8ff0bd' : (isA ? '#ffd166' : '#eaf6ff');
+      ctx.fillText(done ? 'a ✓' : (isA ? 'a · 目标' : n.id.toUpperCase()), c.x, c.y-(compact?7:13));
+      if(!compact){
+        ctx.font='10px system-ui'; ctx.fillStyle='rgba(190,215,235,.65)';
+        ctx.textBaseline='top';
+        ctx.fillText(`${n.T}s · ${n.v}m/s`, c.x, c.y+14);
+      }
+    }
+  }
+
+  function drawPlayer(){
+    const p=G.player, bl=p.blink, c=w2s(p.x,p.y);
+
+    // 闪现落点预告 + 延迟倒计时
+    if(bl.phase==='delay' && bl.target){
+      const q=w2s(bl.target.x, bl.target.y);
+      ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(q.x,q.y);
+      ctx.setLineDash([5,5]); ctx.strokeStyle='rgba(201,166,255,.75)'; ctx.lineWidth=1.6;
+      ctx.stroke(); ctx.setLineDash([]);
+      const k = clamp(bl.t/CFG.blinkDelay,0,1);
+      ctx.beginPath(); ctx.arc(q.x,q.y,12,-Math.PI/2, -Math.PI/2 + Math.PI*2*k);
+      ctx.strokeStyle='#c9a6ff'; ctx.lineWidth=3; ctx.stroke();
+      ctx.beginPath(); ctx.arc(q.x,q.y,4,0,Math.PI*2);
+      ctx.fillStyle='#c9a6ff'; ctx.fill();
+      ctx.font='10px system-ui'; ctx.textAlign='center';
+      ctx.fillStyle='#d8c2ff';
+      ctx.fillText(`闪现 ${Math.max(0,CFG.blinkDelay-bl.t).toFixed(1)}s`, q.x, q.y-19);
+      ctx.beginPath(); ctx.arc(c.x,c.y,11,0,Math.PI*2);
+      ctx.strokeStyle=`rgba(201,166,255,${0.65*(1-k)})`; ctx.lineWidth=1.5; ctx.stroke();
+    }
+    // 冷却环
+    if(bl.phase==='cool'){
+      const k = clamp(bl.t/CFG.blinkCool,0,1);
+      ctx.beginPath(); ctx.arc(c.x,c.y,15,-Math.PI/2, -Math.PI/2 + Math.PI*2*k);
+      ctx.strokeStyle='rgba(127,227,245,.85)'; ctx.lineWidth=2.5; ctx.stroke();
+      ctx.font='10px system-ui'; ctx.textAlign='center'; ctx.fillStyle='#9fdcec';
+      ctx.fillText(`冷却 ${Math.max(0,CFG.blinkCool-bl.t).toFixed(1)}s`, c.x, c.y-22);
+    }
+
+    // a 点作业椭圆 / 填洞
+    if(G.work){
+      const t=G.work.t;
+      const rx=Math.max(5,0.5*VIEW.scale), ry=Math.max(10,1*VIEW.scale);
+      const off=Math.max(12,1.5*VIEW.scale);
+      if(t<1){
+        const a=0.55+0.4*Math.sin(t*Math.PI*4);
+        ctx.strokeStyle=`rgba(255,214,102,${a})`; ctx.lineWidth=2;
+        ctx.fillStyle=`rgba(255,214,102,${a*0.18})`;
+        for(const dx of [-off,off]){
+          ctx.beginPath(); ctx.ellipse(c.x+dx,c.y,rx,ry,0,0,Math.PI*2);
+          ctx.fill(); ctx.stroke();
+        }
+        ctx.font='10px system-ui'; ctx.textAlign='center';
+        ctx.fillStyle='#ffd166'; ctx.fillText('保持椭圆 1 s', c.x, c.y+ry+8);
+      } else {
+        const k=(t-1);
+        ctx.strokeStyle=`rgba(120,220,160,${1-k})`; ctx.lineWidth=2;
+        for(const dx of [-off,off]){
+          ctx.beginPath(); ctx.ellipse(c.x+dx,c.y,rx*(1-k*0.9),ry*(1-k*0.9),0,0,Math.PI*2);
+          ctx.stroke();
+        }
+        ctx.beginPath(); ctx.arc(c.x,c.y, (1-k)*Math.max(14,6*VIEW.scale),0,Math.PI*2);
+        ctx.strokeStyle=`rgba(120,220,160,${0.8*(1-k)})`; ctx.setLineDash([3,3]);
+        ctx.stroke(); ctx.setLineDash([]);
+        ctx.font='10px system-ui'; ctx.textAlign='center';
+        ctx.fillStyle='#7fe0a8'; ctx.fillText('填补洞穴 1 s', c.x, c.y+ry+8);
+      }
+      const bw=54, bx=c.x-bw/2, by=c.y+ry+20;
+      ctx.fillStyle='rgba(10,25,40,.85)'; ctx.fillRect(bx,by,bw,5);
+      ctx.fillStyle= t<1 ? '#ffd166' : '#5ce6a0';
+      ctx.fillRect(bx,by,bw*clamp(t/CFG.workSec,0,1),5);
+    }
+
+    // 本体
+    const blink = p.invuln>0 && Math.floor(G.t*10)%2===0;
+    ctx.beginPath(); ctx.arc(c.x,c.y,7,0,Math.PI*2);
+    ctx.fillStyle = blink ? 'rgba(255,255,255,.35)' : '#eafcff';
+    ctx.shadowColor='#7fe3f5'; ctx.shadowBlur=14; ctx.fill(); ctx.shadowBlur=0;
+    ctx.lineWidth=2; ctx.strokeStyle='#0e7a86'; ctx.stroke();
+    ctx.font='11px system-ui'; ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.fillStyle='#cfefff'; ctx.fillText('执行', c.x, c.y-11);
+    if(p.invuln>0){
+      ctx.beginPath(); ctx.arc(c.x,c.y,13,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,180,84,.7)'; ctx.lineWidth=1.5; ctx.stroke();
+    }
+  }
+
+  function drawApproach(){
+    ctx.fillStyle='#081321'; ctx.fillRect(0,0,W,H);
+    const cx=W/2, cy=H/2, R=Math.min(W,H)*0.36;   // R = 2000 m 刻度
+    const k=clamp(G.approachT/CFG.approachSec,0,1);
+    for(const m of [500,1000,1500,2000]){
+      ctx.beginPath(); ctx.arc(cx,cy,R*m/2000,0,Math.PI*2);
+      ctx.strokeStyle= m===1500 ? 'rgba(127,227,245,.42)' : 'rgba(90,150,200,.18)';
+      ctx.lineWidth= m===1500 ? 1.6 : 1; ctx.setLineDash([4,6]);
+      ctx.stroke(); ctx.setLineDash([]);
+      ctx.font='10px system-ui'; ctx.textAlign='left'; ctx.fillStyle='rgba(150,185,215,.6)';
+      ctx.fillText(m+' m', cx+4, cy-R*m/2000-2);
+    }
+    // 1400 m 波场边界
+    ctx.beginPath(); ctx.arc(cx,cy,R*CFG.maxR/2000,0,Math.PI*2);
+    ctx.setLineDash([9,6]); ctx.strokeStyle='rgba(255,107,107,.5)'; ctx.lineWidth=1.8;
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.font='10px system-ui'; ctx.textAlign='left'; ctx.fillStyle='rgba(255,160,160,.75)';
+    ctx.fillText('波场 1400 m', cx+4, cy-R*CFG.maxR/2000-3);
+    ctx.beginPath(); ctx.arc(cx,cy,5,0,Math.PI*2);
+    ctx.fillStyle='#ff6b6b'; ctx.shadowColor='#ff6b6b'; ctx.shadowBlur=14; ctx.fill(); ctx.shadowBlur=0;
+    ctx.font='bold 13px system-ui'; ctx.textAlign='center'; ctx.fillStyle='#ffd0d0';
+    ctx.fillText('a · 原点 / 目标', cx, cy+18);
+    const py = cy + R*CFG.spawnDist/2000;
+    ctx.beginPath(); ctx.moveTo(cx,cy+R); ctx.lineTo(cx,py);
+    ctx.strokeStyle='rgba(127,227,245,.4)'; ctx.lineWidth=1.5; ctx.setLineDash([6,5]);
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(cx,py,8,0,Math.PI*2);
+    ctx.fillStyle='#eafcff'; ctx.shadowColor='#7fe3f5'; ctx.shadowBlur=16; ctx.fill(); ctx.shadowBlur=0;
+    ctx.font='12px system-ui'; ctx.textAlign='center'; ctx.fillStyle='#bfe8f5';
+    ctx.fillText(`执行人员 · 出生点 ${CFG.spawnDist} m`, cx, py-16);
+    ctx.font='bold 17px system-ui'; ctx.fillStyle='#7fe3f5';
+    ctx.fillText('部 署 中', cx, cy-R-34);
+    ctx.font='12px system-ui'; ctx.fillStyle='#8fb0ca';
+    ctx.fillText(`开局五点各已按间隔铺开 ${CFG.presetWaves} 道历史波（共 ${CFG.presetWaves*DEF.length} 道）· 单步 ≤ 55 m`, cx, cy-R-14);
+    const bw=Math.min(380,W-60), bx=cx-bw/2, by=cy+R+34;
+    ctx.fillStyle='rgba(20,45,70,.9)'; ctx.fillRect(bx,by,bw,6);
+    ctx.fillStyle='#4dd0e1'; ctx.fillRect(bx,by,bw*k,6);
+  }
+
+  function drawReady(){
+    ctx.fillStyle='#081321'; ctx.fillRect(0,0,W,H);
+    const cx=W/2, cy=H/2;
+    ctx.font='bold 26px system-ui'; ctx.textAlign='center'; ctx.fillStyle='#7fe3f5';
+    ctx.fillText('波 隙 作 业 · 往返', cx, cy-64);
+    ctx.font='13px system-ui'; ctx.fillStyle='#9fb8cf';
+    ctx.fillText(`五点已旋转 180° · 波场 1400 m · 开局各预置 ${CFG.presetWaves} 道历史波（共 ${CFG.presetWaves*DEF.length} 道）`, cx, cy-32);
+    ctx.fillText('从距 a 点 1500 m 的出生点出发，靠闪现穿过已铺开的波环间隙', cx, cy-10);
+    ctx.fillText('抵达 a 点完成 2 秒作业 → 原路返回出生点即通关', cx, cy+12);
+    ctx.fillText('指令 → 1 s 延迟 → 瞬移 → 1 s 冷却', cx, cy+34);
+    ctx.font='12px system-ui'; ctx.fillStyle='#6f8da8';
+    ctx.fillText(G.best ? `本机最佳往返：${G.best.toFixed(1)} s` : '尚无通关记录', cx, cy+68);
+  }
+
+  function render(){
+    if(!G) return;
+    ctx.clearRect(0,0,W,H);
+    if(G.phase==='ready'){ drawReady(); return; }
+    if(G.phase==='approach'){ drawApproach(); return; }
+    grid(); drawWaves(); drawTrails(w2s, VIEW.scale); drawHome(); drawNodes(); drawPlayer();
+    if(G.paused){
+      ctx.fillStyle='rgba(5,14,26,.55)'; ctx.fillRect(0,0,W,H);
+      ctx.font='bold 22px system-ui'; ctx.textAlign='center'; ctx.fillStyle='#7fe3f5';
+      ctx.fillText('已暂停', W/2, H/2);
+    }
+    drawInset();
+  }
+
+  function frame(ts){
+    if(!lastTs) lastTs=ts;
+    let dt=(ts-lastTs)/1000; lastTs=ts;
+    dt=clamp(dt,0,0.05);
+    update(dt*CFG.timeScale, dt);
+    smoothView(dt);
+    updateHUD(); render();
+    requestAnimationFrame(frame);
+  }
+
+  $('legend').innerHTML = DEF.map(d=>
+    `<span><i class="dot" style="background:${d.color}"></i>${d.id.toUpperCase()} · ${d.T}s / ${d.v}m/s</span>`
+  ).join('');
+
+  resize();
+  reset();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
